@@ -1,6 +1,9 @@
 package spentcalories
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -14,7 +17,28 @@ const (
 )
 
 func parseTraining(data string) (int, string, time.Duration, error) {
-	// ваш код ниже
+	// Разделяем строку на три части
+	parts := strings.Split(data, ",")
+	if len(parts) != 3 {
+		return 0, "", 0, fmt.Errorf("ожидалось три элемента, но получили %d", len(parts))
+	}
+
+	// Преобразуем первый элемент в int
+	steps, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("не удалось преобразовать количество шагов")
+	}
+
+	// Преобразуем третий элемент в time.Duration
+	duration, err := time.ParseDuration(parts[2])
+	if err != nil {
+		return 0, "", 0, fmt.Errorf("не удалось преобразовать продолжительность")
+	}
+
+	// Вид активности
+	activity := parts[1]
+
+	return steps, activity, duration, nil
 }
 
 // distance возвращает дистанцию(в километрах), которую преодолел пользователь за время тренировки.
@@ -23,7 +47,10 @@ func parseTraining(data string) (int, string, time.Duration, error) {
 //
 // steps int — количество совершенных действий (число шагов при ходьбе и беге).
 func distance(steps int) float64 {
-	// ваш код ниже
+	// Вычисляем дистанцию в метрах
+	distanceInMeters := float64(steps) * lenStep
+	// Переводим в километры
+	return distanceInMeters / mInKm
 }
 
 // meanSpeed возвращает значение средней скорости движения во время тренировки.
@@ -33,7 +60,15 @@ func distance(steps int) float64 {
 // steps int — количество совершенных действий(число шагов при ходьбе и беге).
 // duration time.Duration — длительность тренировки.
 func meanSpeed(steps int, duration time.Duration) float64 {
-	// ваш код ниже
+	if duration == 0 {
+		return 0
+	}
+	// Вычисляем дистанцию
+	distance := distance(steps)
+	// Переводим продолжительность в часы
+	hours := duration.Hours()
+	// Вычисляем среднюю скорость
+	return distance / hours
 }
 
 // ShowTrainingInfo возвращает строку с информацией о тренировке.
@@ -43,7 +78,29 @@ func meanSpeed(steps int, duration time.Duration) float64 {
 // data string - строка с данными.
 // weight, height float64 — вес и рост пользователя.
 func TrainingInfo(data string, weight, height float64) string {
-	// ваш код ниже
+	// Парсим данные
+	steps, activity, duration, err := parseTraining(data)
+	if err != nil {
+		return fmt.Sprintf("Ошибка при разборе данных: %v", err)
+	}
+
+	// Вычисляем дистанцию
+	distance := distance(steps)
+	// Вычисляем среднюю скорость
+	speed := meanSpeed(steps, duration)
+
+	var calories float64
+	switch activity {
+	case "Бег":
+		calories = RunningSpentCalories(steps, weight, duration)
+	case "Ходьба":
+		calories = WalkingSpentCalories(steps, weight, height, duration)
+	default:
+		return "неизвестный тип тренировки"
+	}
+
+	// Формируем строку с результатами
+	return fmt.Sprintf("Тип тренировки: %s\nДлительность: %.2f ч.\nДистанция: %.2f км.\nСкорость: %.2f км/ч\nСожгли калорий: %.2f", activity, duration.Hours(), distance, speed, calories)
 }
 
 // Константы для расчета калорий, расходуемых при беге.
@@ -60,8 +117,11 @@ const (
 // weight float64 — вес пользователя.
 // duration time.Duration — длительность тренировки.
 func RunningSpentCalories(steps int, weight float64, duration time.Duration) float64 {
-	// ваш код здесь
-
+	// Вычисляем среднюю скорость
+	meanSpeed := meanSpeed(steps, duration)
+	// Вычисляем калории
+	calories := ((runningCaloriesMeanSpeedMultiplier * meanSpeed) - runningCaloriesMeanSpeedShift) * weight
+	return calories
 }
 
 // Константы для расчета калорий, расходуемых при ходьбе.
@@ -79,6 +139,11 @@ const (
 // weight float64 — вес пользователя.
 // height float64 — рост пользователя.
 func WalkingSpentCalories(steps int, weight, height float64, duration time.Duration) float64 {
-	// ваш код здесь
-
+	// Вычисляем среднюю скорость
+	speed := meanSpeed(steps, duration)
+	// Переводим продолжительность в часы
+	hours := duration.Hours()
+	// Вычисляем калории
+	calories := ((walkingCaloriesWeightMultiplier * weight) + (speed*speed/height)*walkingSpeedHeightMultiplier) * hours * minInH
+	return calories
 }
